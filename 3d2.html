@@ -1,0 +1,611 @@
+
+<html>
+  <head>
+    <style>
+      canvas{
+        position:fixed;
+        left:0;
+        top:0;
+        width:99%;
+        height:99%;
+      }
+      * {
+        padding:0px;
+        margin:0px
+      }
+      #score,#speed,#highscore,#maxspeed,#lag,#debug{
+        position: fixed;
+        z-index: 100;
+        font-size:20px;
+        font-family:Verdana;
+        left:15px;
+        width: 100%;
+      }
+      #gameover{
+        position:absolute;
+        z-index: 100;
+        font-size:60px;
+        font-family:Verdana;
+        margin: 0;
+        top: 50%;
+        left: 50%;
+        opacity:0;
+        transform: translate(-50%, -50%);
+      }
+      #maxspeed, #score, #josh, #speed, #highscore, #lag {
+        display:block;
+      }
+      #maxspeed {
+        width: 100%;
+        top:50px;
+        display:none;
+      }
+
+      #score {
+        top: 10px;
+      }
+      #speed {
+        top: 30px;
+      }
+
+      #highscore {
+        top:30px;
+      }
+
+      #lag {
+        top: 70px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stats">
+      <div id="debug"></div>
+      <div id="score">Score: 0</div>
+      <div id="speed">Speed: 1</div>
+      <div id="highscore">Highscore: 1</div>
+      <div id="maxspeed">Highest Speed: 1</div>
+      <span id="lag">Lag: 0ms</span>
+      <div id="gameover" align="center">Game Over</div>
+    </div>
+    <div id="canvas"></div>
+    <p id="p"></p>
+    <p id="e"></p>
+    <script type="text/javascript" src="https://cdn.rawgit.com/alexgibson/shake.js/master/shake.js"></script>
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script>
+      //========================
+      // One times
+      //========================
+      const random = Math.random,
+            floor = function(a){ return ~~a},
+            newGeometry = THREE.BoxGeometry,
+            newBufferGeometry = THREE.BufferGeometry,
+            newMesh = THREE.Mesh,
+            newLineSegments = THREE.LineSegments,
+            newMeshBasicMaterial = THREE.MeshBasicMaterial,
+            newVector3 = THREE.Vector3,
+            newLineBasicMaterial = THREE.LineBasicMaterial,
+            newBoxGeometry = THREE.BoxGeometry,
+            newBoxBufferGeometry = THREE.BoxBufferGeometry,
+            arena = new THREE.Group(),
+            applegeometry = new THREE.SphereGeometry( 0.5, 32, 32 ),
+            superapplematerial= new THREE.MeshBasicMaterial({color:"gold"}),
+            applematerial= new THREE.MeshBasicMaterial({color:"limegreen"}),
+            floormaterial = new newMeshBasicMaterial({color:"lightgrey"}),
+            wallmaterial = new newMeshBasicMaterial( { color: "grey" } ),
+            linecube = new THREE.BoxGeometry( 1,1,1 ),
+            edges = new THREE.EdgesGeometry( linecube ),
+            geometry = new newBoxGeometry( 1,1,1 ),
+            stringify = JSON.stringify
+
+
+    </script>
+    <script id="script">
+      (function(THREE,ArenaWidth, ArenaLength){
+        'use strict'
+        const arenaLines = new THREE.Group(),
+              arenaWall = new newGeometry(),
+              arenaFloor = new newGeometry(),
+              wall1 = new newBoxGeometry(
+                ArenaWidth+1,
+                1,
+                1 
+              ).translate(
+                ArenaWidth/2-2,
+                1,
+                -2
+              ),
+              wall2 = new newBoxGeometry(
+                1,
+                1,
+                ArenaLength+1
+              ).translate(
+                ArenaWidth-2,
+                1,
+                ArenaLength/2-2
+              );
+        arenaWall.merge(wall1);
+        arenaWall.merge(wall1.translate(0,0, ArenaLength))
+        arenaWall.merge(wall2);
+        arenaWall.merge(wall2.translate(-ArenaWidth,0,0));
+        arenaFloor.merge(new newBoxGeometry( ArenaWidth+1, 1, ArenaLength+1 ).translate((ArenaWidth/2)-2,0,(ArenaLength/2)-2))
+        arenaWall.mergeVertices()
+        arenaFloor.mergeVertices()
+        // Get the meshs
+        window.arenaWallMesh = new newMesh(arenaWall, wallmaterial);
+        window.arenaFloorMesh = new newMesh(arenaFloor, floormaterial);
+
+        var speed = 100,
+            maxwidth = 40,
+            maxdepdth = 40,
+            size = 0.5,
+            score = 0,
+            maxheight = 0,
+            lagNum = 0,
+            highscoreNum,
+            showlag,
+            maxspeedNum,
+            showmaxspeed,
+            showhighscore
+
+        //========================
+        // Threejs
+        //========================
+
+        var scene = new THREE.Scene(),
+            camera= new THREE.PerspectiveCamera(75,window.innerWidth/window.innerHeight,0.1,60),
+            renderer = new THREE.WebGLRenderer(),
+            extrasLookup = {
+              1:30,
+              2:50,
+              3:70,
+              4:90
+            }
+        //========================
+        // Reductions
+        //========================
+        const newScene = THREE.Scene
+
+        if(localStorage.getItem("3dhighscore")==undefined){
+          highscoreNum=0
+        } else {
+          highscoreNum = localStorage.getItem("3dhighscore")
+        }
+        if(localStorage.getItem("showlag")==undefined){
+          showlag=false
+        } else {
+          showlag = localStorage.getItem("showlag")
+        }
+        if(localStorage.getItem("3dmaxspeed")==undefined){
+          maxspeedNum=100
+        } else {
+          maxspeedNum = localStorage.getItem("3dmaxspeed")
+        }
+        if(showmaxspeed==undefined){
+          showmaxspeed=false
+        }
+        if(showhighscore==undefined){
+          showhighscore=true
+        }
+
+        renderer.setSize( window.innerWidth, window.innerHeight );
+        document.getElementById("canvas").appendChild( renderer.domElement );
+
+        function animate() {
+          requestAnimationFrame( animate )
+          renderer.render( scene, camera );
+        }
+        function Location(x,y,z){
+            let res = pool.allocate();
+            res[0] = x;
+            res[1] = y;
+            res[2] = z;
+            return res;
+        }
+const Pool = ( function(){
+	const { setPrototypeOf, defineProperty, getOwnPropertyNames, freeze } = Object,
+	 { toString, hasOwnProperty } = {},
+	 empty = ( obj, template ) => {
+			let templateNames = getOwnPropertyNames( template ),
+		 ownNames = getOwnPropertyNames( obj );
+			for ( let name of [...templateNames, ...ownNames] ) {
+				if( hasOwnProperty.call( template, name ) ) {
+					if( typeof template[name] === 'object' ) {
+						obj[name] = empty( obj[name], template[name] );
+					} else {
+						obj[name] = template[name];
+					}
+				} else {
+					delete obj[name];
+				}
+			}
+			return obj;
+		},
+	 deepFreeze = ( object ) => {
+			let propNames = getOwnPropertyNames( object );
+			for ( const name of propNames ) {
+				let value = object[name];
+				object[name] = value && typeof value === 'object' ? deepFreeze( value ) : value;
+			}
+			return Object.freeze( object );
+		},
+	 deepClone = ( object ) => {
+			let result = {},
+				propNames = getOwnPropertyNames( object );
+			for ( let name of propNames ) {
+		    let value = object[name];
+		    result[name] = value && typeof value === 'object' ? deepClone( value ) : value;
+			}
+			return setPrototypeOf( result, object.__proto__ );
+		};
+	/**
+	 * An object pool class.
+	 * @class
+	 */
+	class Pool {
+		/**
+		 * The Pool constructor.
+		 * @param {Template} obj The template to use.
+		 * @param {number} size The number of objects to create.
+		 * @constructs Pool
+		 */
+		constructor( obj, size ) {
+			defineProperty( this, '__default__', {
+				value: deepFreeze( deepClone( obj ) ),
+				configurable: false,
+				protected: true
+			} );
+			defineProperty( this, '__items__', {
+			  value: freeze( setPrototypeOf( Array( size ).fill().map( ( item ) => {
+					return [1, deepClone( obj )];
+				} ), null ) ),
+				configurable: false,
+				protected: true
+			} );
+		}
+		/**
+		 * Get a new object.
+		 * @returns {Object} The new allocated object.
+		 */
+		allocate() {
+			for( let i = 0; i < this.__items__.length; i++ ) {
+				let pair = this.__items__[i];
+				if( pair[0] === 1 ) {
+					pair[0] = 0;
+					return pair[1];
+				}
+			}
+		}
+		/**
+		 * Free an object for later use.
+		 * @param {Object} obj The obejct to free.
+		 * @returns {undefined}
+		 * @throws {Error} The item was not found in the pool.
+		 */
+		free( obj ) {
+			for( let i = 0; i < this.__items__.length; i++ ) {
+				let pair = this.__items__[i];
+				if( pair[1] === obj ) {
+					pair[0] = 1;
+					Promise.resolve().then( ()=>{empty( obj, this.__default__ );} );
+					return;
+				}
+			}
+			throw Error( 'Object not found in pool.' );
+		}
+	}
+	return Pool;
+} )();
+const pool = new Pool([0,0,0], 100);
+const pool2 = new Pool({}, 30);
+/**
+ * A template to use for an object pool.
+ * @alias Template
+ * @typedef {Object} Template
+ * @memberof Pool
+ */
+        //========================
+        // Dom
+        //========================
+        const maxSpeedDom = document.getElementById("maxspeed"),
+              maxSpeedDomStyle = maxSpeedDom.style,
+              lagdom = document.getElementById("lag"),
+              lagdomstyle = lagdom.style,
+              highScoreDom = document.getElementById("highscore"),
+              highScoreDomStyle = highScoreDom.style,
+              scoredom = document.getElementById("score"),
+              speeddom = document.getElementById("speed"),
+              gameOverDom = document.getElementById("gameover"),
+              gameOverDomStyle = gameOverDom.style;
+        //========================
+        // Snake
+        //========================
+        class Snake {
+          constructor(){
+            this.segments = [
+              Location(7,1,5),
+              Location(6,1,5),
+              Location(5,1,5)
+            ];
+            this.direction = "forwards";
+            this.nextDirection = "forwards";
+            this.nextHead = Location(8,1,5);
+          }
+          draw(){
+            let snakeobject = new THREE.Group()
+            let j = this.segments.length;
+            this.segments.forEach((item,index) => {
+              let i = index
+	      let obj1 = pool2.allocate();
+              let segmentColor=`rgb(${255-(255/j|0)*index+randomNumberBetween(-(j-index),j-index)},00,00)`
+	      obj1.color = segmentColor;
+              const cube = new newMesh(geometry, new newMeshBasicMaterial(obj1));
+	      pool2.free(obj1);
+              const line = new newLineSegments(edges, new newLineBasicMaterial({color:segmentColor, linewidth:2}));
+              cube.position.set(...item);
+              line.position.set(...item);
+              snakeobject.add(line,cube);
+            })
+            scene.add(snakeobject);
+          }
+          move() {
+            this.segments.unshift(this.nextHead);
+            if(this.checkCollision()) {
+              this.segments.shift();
+              gameOver();
+              return;
+            };
+            var nextHeadPos = this.nextHead;
+            this.direction = this.nextDirection;
+            (directionSwitch[this.direction])(nextHeadPos);
+            if(stringify(this.segments[0]) === stringify(apple.pos)) {
+              speed=0.95*speed;
+              score++;
+              if(apple.type === "superapple") {
+                speed = 1.10*speed;
+                score += 4;
+              }
+              apple.move();
+            } else {
+              pool.free(this.segments.pop());
+            };
+          }
+          changeDirection(key) {
+            switch(key){
+              case 39:
+              case 68:
+              case 37:
+              case 65:
+                keyLookup[key][this.direction]();
+                break;
+              case 192:
+              case 55:
+              case 56:
+                keyLookup[key]();
+                break;
+                      }
+          }
+          checkCollision() {
+            const head = this.segments[0];
+            const headz = head[2];
+            const headx = head[0];
+            const wallCollision = headz === -2 || headz === ArenaLength-2 || headx === -2 || headx === ArenaWidth-2;
+            if(wallCollision){return true};
+            const selfCollision = this.segments.some((item, index) => {
+              if(index) {
+                if(item[0] === head[0] && item[2] === head[2]) {
+                  return true;
+                };
+              };
+            });
+            if(selfCollision){return true};
+            return false;
+          }
+        }
+
+        //========================
+        // Drawing
+        //========================
+        function drawStats() {
+          var extras = 1;
+          if(score > highscoreNum) {
+            highscoreNum = score;
+            //localStorage.setItem("3dhighscore", highscore);
+          }
+          if(speed < maxspeed) {
+            maxspeedNum = speed;
+            //localStorage.setItem("3dmaxspeed", maxspeed);
+          }
+
+          scoredom.innerHTML=`Score: ${score}`;
+          speeddom.innerHTML=`Speed: ${(((100/speed*100)|0)/100)}`;
+
+          if(showhighscore) {
+            extras++;
+            highscore.style.display = "block";
+            highscore.style.top = extrasLookup[extras];
+            highscore.innerHTML = `Highscore: ${highscoreNum}`;
+
+          } else {
+            highScoreDomStyle.display = "none";
+          };
+
+          if(showmaxspeed) {
+            extras++;
+            maxspeed.style.display = "block";
+            maxspeed.style.top = extrasLookup[extras];
+            maxspeed.innerHTML = `Highest Speed: ${(((100/maxspeed*100)|0)/100)}`;
+          } else {
+            maxspeed.style.display = "none";
+          };
+
+          if(showlag) {
+            extras++;
+            lag.style.display = "block";
+            lag.style.top = extrasLookup[extras];
+            lag.innerHTML = `Lag: ${lagNum}ms`;
+          } else {
+            lagdomstyle.display = "none";
+          };
+        };
+
+        //========================
+        // Apple
+        //========================
+        class Apple {
+          constructor(){
+            this.pos = Location(2,1,2);
+          }
+          move(){
+
+            // Set the location to a random x and z.
+            const x = randomNumberBetween(0,ArenaWidth-4);
+            const z = randomNumberBetween(0,ArenaLength-4);
+            this.pos = Location(x,1,z);
+            if(randomNumberBetween(1,11)===1&&score>15){                  
+              apple.type="superapple";
+            } else {
+              apple.type="apple";
+            };
+          }
+          draw() {
+            var sphere = this.type === "superapple" ? new newMesh( applegeometry, superapplematerial ) : new newMesh( applegeometry, applematerial );
+
+            // Set the location of the visual apple to the data location.
+            sphere.position.set(...this.pos);
+            scene.add(sphere);
+          }
+        }
+        //========================
+        // Misc
+        //========================
+        function newGame(key) {
+          if(key==82) {
+
+            // Stop the game.
+            clearTimeout(gameLoop);
+            s=function(){};
+
+            // Start a new game.
+            var game = document.getElementById("canvas");
+            game.removeChild(game.childNodes[0]);
+            eval(document.getElementById("script").innerHTML);
+          }
+        }
+        gameOverDomStyle.opacity=0;
+        function gameOver() {
+          s = function() {
+            camera.position.copy(new newVector3((ArenaWidth/2)-2,Math.sqrt(
+              Math.pow(ArenaWidth/2,2)+Math.pow(ArenaLength/2,2)),(ArenaLength/2)-2));
+            camera.lookAt(new newVector3((ArenaWidth/2)-2,0,(ArenaLength/2)-2));
+          };
+	  S = requestAnimationFrame.bind(null,s)
+          document.onkeydown=function(e) {
+            newGame(e.keyCode);    
+          };
+          //listen to shake event
+          var shakeEvent = new Shake({threshold: 15});
+          shakeEvent.start();
+          window.addEventListener('shake', newGame.bind(false,82), false);
+
+          //stop listening
+          function stopShake(){
+            shakeEvent.stop();
+          };
+
+          //check if shake is supported or not.
+          if(!("ondevicemotion" in window)){alert("Not Supported");}
+          gameOverDomStyle.opacity = 1;
+        };
+
+        function randomNumberBetween(a,b) {
+          return a+floor(random()*(b-a));
+        };
+        var apple = new Apple(),
+            snake = new Snake();
+        var directionSwitch={
+          "forwards":function(a){this.nextHead = Location(a[0]+1, a[1], a[2])},
+          "backwards":function(a){this.nextHead = Location(a[0]-1, a[1], a[2])},
+          "left":function(a){this.nextHead = Location(a[0], a[1], a[2]-1)},
+          "right":function(a){this.nextHead = Location(a[0], a[1], a[2]+1)}
+        };
+        for(var x in directionSwitch){
+          directionSwitch[x] = directionSwitch[x].bind(snake);
+        };
+        var right = {
+          "right":function(){this.nextDirection = "backwards"},
+          "backwards":function(){this.nextDirection = "left"},
+          "forwards":function(){this.nextDirection = "right"},
+          "left":function(){this.nextDirection = "forwards"}
+        };
+        for(var x in right){
+          right[x] = right[x].bind(snake);
+        };
+        var left = {
+          "right":function(){this.nextDirection = "forwards"},
+          "forwards":function(){this.nextDirection = "left"},
+          "left":function(){this.nextDirection = "backwards"},
+          "backwards":function(){this.nextDirection = "right"}
+        };
+        for(var x in left){
+          left[x] = left[x].bind(snake);
+        };
+        var keyLookup = {
+          "39":right,
+          "68":right,
+          "37":left,
+          "65":left,
+          "192":function(){showlag=!showlag},
+          "55":function(){showhighscore=!showhighscore},
+          "56":function(){showmaxspeed = !showmaxspeed}
+        };
+        snake.draw();
+        apple.move();
+
+        var background = new THREE.Color( "white" ),
+            fog = new THREE.FogExp2( "white", 0.02625 );
+
+        let s = function() {
+          // Start for lag detection.
+          var start = performance.now();
+
+          // Make a fresh scene.
+	  scene.children.length = 0;
+
+          // Move the snake.
+          snake.move();
+
+          // Render various things onto the scene.
+          scene.add(arenaWallMesh,arenaFloorMesh);
+          snake.draw();
+          apple.draw();
+          drawStats();
+
+
+          // Get relevent snake parts.
+          let head = snake.segments[0];
+          let nextHead = snake.nextHead;
+
+          // Set camera position and target.
+          camera.position.set(...head);
+	  camera.lookAt(...nextHead);
+          // Set background and fog.
+	  scene.fog = fog;
+	  scene.background = background;
+          let end = performance.now();
+          // Reschedule the next update
+          gameLoop = setTimeout(S,speed);
+
+          // End for lag detection and calculation of lag.
+          lagNum = floor((end-start));
+        }
+	let S = requestAnimationFrame.bind(null,s);
+        animate();
+        var gameLoop = setTimeout(S,speed);
+        document.onkeydown = function(e) {
+          snake.changeDirection(e.keyCode);
+        }
+      })(window.THREE, (((window.innerWidth/10)|0)*10)/10, (((window.innerHeight/10)|0)*10)/10)
+    </script>
+  </body>
+</html>

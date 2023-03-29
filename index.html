@@ -1,0 +1,343 @@
+
+<!DOCTYPE html>
+<html id="game">
+
+  <head>
+    <title>Snake!</title>
+    <script src="https://unpkg.com/swipe-listener@latest/dist/swipe-listener.min.js" type="text/javascript"></script>
+    <style>
+      body {
+        margin: 0px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas"></canvas>
+
+    <p id="error" style="color:red"></p>
+    <script id="script">
+      var container = document.getElementById('canvas');
+      var listener = SwipeListener(container);
+      container.addEventListener('swipe', function (e) {
+        e.preventDefault()
+        var directions = e.detail.directions;
+        var x = e.detail.x;
+        var y = e.detail.y;
+        if (directions.left) {
+          snake.setDirection("left")
+        }
+        if (directions.right) {
+          snake.setDirection("right")
+        }
+        if (directions.top) {
+          snake.setDirection("up")
+        }
+        if (directions.bottom) {
+          snake.setDirection("down")
+        }
+      });  document.getElementById("game").onkeydown=function(e){
+        var keyCode = e.keyCode
+        if(keyCode === 192){
+          showlag = !showlag
+        }else if(keyCode === 55) {
+          showhighscore = !showhighscore
+        }else if(keyCode === 56){
+          showmaxspeed = !showmaxspeed
+        }
+      }
+      var canvas = document.getElementById("canvas")
+      var ctx = canvas.getContext("2d")
+      if(localStorage.getItem("2dhighscore")===undefined){
+        this.highscore=0
+      } else {
+        highscore = localStorage.getItem("2dhighscore")
+      }
+      if(localStorage.getItem("showlag")===undefined){
+        this.showlag=false
+      } else {
+        this.showlag = localStorage.getItem("showlag")
+      }
+      if(localStorage.getItem("2dmaxspeed")==undefined){
+        this.maxspeed=100
+      } else {
+        maxspeed = localStorage.getItem("2dmaxspeed")
+      }
+      if(this.showmaxspeed==undefined){
+        this.showmaxspeed=false
+      }
+      if(this.showhighscore==undefined){
+        this.showhighscore=true
+      }
+      function floor(a){return a>>0}
+      const blockSize = 10
+      var score = 0 
+      function drawBorder() {
+        ctx.fillStyle = "Gray";
+        ctx.fillRect(0,0,width,blockSize)
+        ctx.fillRect(0,height-blockSize,width,blockSize)
+        ctx.fillRect(0,0,blockSize,height)
+        ctx.fillRect(width-blockSize,0,blockSize,height)
+      }
+      console.log(window.innerHeight)
+      console.log(((window.innerHeight/blockSize)|0)*blockSize)
+      canvas.height = ((window.innerHeight/blockSize)|0)*blockSize-0*blockSize
+      canvas.width = ((window.innerWidth/blockSize)|0)*blockSize-0*blockSize
+      const height = canvas.height,
+            width = canvas.width,
+            widthInBlocks = width / blockSize,
+            heightInBlocks = height / blockSize
+      var extrasIndex = {
+        1:50,
+        2:70,
+        3:90,
+      }
+      ctx.font = "20px Verdana"
+      ctx.fillStyle = "Black"
+      ctx.textAlign = "left"
+      ctx.textBaseline = "top"
+      ctx.save()
+      function drawScore() {
+        var extras = 0
+        ctx.restore();
+        ctx.save();
+        var offset = blockSize+4
+        ctx.fillText("Score: "+score,offset,blockSize)
+        ctx.fillText("Speed: "+(floor(100/speed*100)/100),offset,3*blockSize)
+        if(score>highscore){
+          highscore=score
+          localStorage.setItem("2dhighscore", highscore);
+        }
+        if(speed<maxspeed){
+          maxspeed=speed
+          localStorage.setItem("2dmaxspeed", maxspeed);
+        }
+        if(showhighscore==true){
+          extras++
+          ctx.fillText("Highscore: "+highscore,offset,extrasIndex[extras])
+        };
+        if(showmaxspeed==true){
+          extras++
+          ctx.fillText(`Highest Speed: ${(floor(100/maxspeed*100)/100)}`,offset,extrasIndex[extras])
+        }
+        if(showlag==true){
+          extras++
+          ctx.fillText(`Lag: ${lag}ms`,offset,extrasIndex[extras])
+        }
+      }
+      //========================
+      // Block
+      //========================
+      var Block = function (col,row) {
+        this.col = col;
+        this.row = row;
+      }
+      Block.prototype.drawSquare = function (color) {
+        var x = this.col * blockSize
+        var y = this.row * blockSize
+        ctx.fillStyle = color
+        ctx.fillRect(x,y,blockSize,blockSize)
+      }
+      Block.prototype.drawCircle = function (color) {
+        var centerX = this.col * blockSize + blockSize / 2
+        var centerY = this.row * blockSize + blockSize / 2
+        ctx.fillStyle = color
+        circle(centerX,centerY,blockSize/2,true)
+      }
+      Block.prototype.equal = function (otherBlock) {
+        return this.col === otherBlock.col && this.row === otherBlock.row;
+      }
+      //========================
+      // Circle
+      //========================
+      var PIx2 = Math.PI * 2
+      var circle = function (x,y,radius,fillCircle) {
+        ctx.beginPath();
+        ctx.arc(x,y,5,0,PIx2, fillCircle);
+        if(fillCircle){
+          ctx.fill()
+        } else {
+          ctx.stroke()
+        }
+      }
+      //========================
+      // Snake
+      //========================
+      var Snake = function () {
+        this.segments = [
+          new Block(7, 5),
+          new Block(6, 5),
+          new Block(5, 5)
+        ];
+        this.direction = "right"
+        this.nextDirection = "right"
+      }
+      Snake.prototype.setDirection = function (newDirection) {
+        var currentDirection = this.direction
+        if(currentDirection === "up" && newDirection === "down") {
+          return;
+        } else if(currentDirection === "right" && newDirection === "left") {
+          return;
+        } else if(currentDirection === "down" && newDirection === "up") {
+          return;
+        } else if(currentDirection === "left" && newDirection === "right") {
+          return;
+        }
+        this.nextDirection = newDirection
+      }
+      Snake.prototype.checkCollision = function(head) {
+        var headCol = head.col
+        var headRow = head.row
+        var leftCollision = (headCol == 0 )
+        var topCollision = (headRow == 0)
+        var rightCollision = (headCol == widthInBlocks - 1)
+        var bottomCollision = (headRow == heightInBlocks - 1)
+        var wallCollision = leftCollision || topCollision || rightCollision || bottomCollision
+        var selfCollision = false
+        this.segments.forEach(function(item){
+          if(head.equal(item)) {
+            selfCollision = true
+          }
+        })
+        return wallCollision || selfCollision
+      }
+      Snake.prototype.draw = function () {
+        let j = this.segments.length
+        this.segments.forEach(function(item,index){
+          item.drawSquare(`rgb(${((255-(((255/j)*index)|0)+randomNumberBetween(0-(j-index),j-index)))},00,00)`)
+        })
+      }
+      Snake.prototype.move = function() {
+        var head = this.segments[0]
+        var newHead;
+        this.direction = this.nextDirection
+        var currentDirection = this.direction
+        if(currentDirection === "right" ) {
+          newHead = new Block(head.col + 1,head.row)
+        } else if (currentDirection === "down") {
+          newHead = new Block(head.col,head.row + 1)
+        } else if (currentDirection === "left") {
+          newHead = new Block(head.col - 1,head.row)
+        } else if (currentDirection === "up") {
+          newHead = new Block(head.col, head.row-1)
+        }
+        if(this.checkCollision(newHead)) {
+          gameOver()
+          return;
+        }
+        this.segments.unshift(newHead)
+        if(newHead.equal(apple.position)) {
+          score++;
+          speed = 0.95 * speed
+          if(apple.type === "superapple"){
+            speed = 1.10*speed
+            score += 4
+          }
+          apple.move()
+        } else {
+          this.segments.pop()
+        }
+      }
+      //========================
+      // Apple
+      //========================
+      var Apple = function() {
+        this.position = new Block(10,10)
+      }
+      Apple.prototype.draw = function() {
+        if(this.type === "superapple"){
+          this.position.drawCircle("gold")
+        } else {
+          this.position.drawCircle("limegreen")
+        }
+      }
+      Apple.prototype.move = function() {
+        var randomCol = floor(Math.random() * (widthInBlocks - 4)) + 2
+        var randomRow = floor(Math.random() * (heightInBlocks - 4)) + 2
+        this.position = new Block(randomCol, randomRow)
+        snake.segments.forEach(function(item,index){
+          if(item.equal(apple.position)){
+            apple.move()
+          }
+        })
+        if((randomNumberBetween(1,11) === 1) && (score > 15)){                	
+          this.type = "superapple"
+        } else {
+          this.type = "apple"
+        }
+      }
+      var speed = 100
+      //========================
+      // Misc
+      //========================
+      function randomNumberBetween(a,b){
+        return a+(Math.random()*(b-a))|0
+      }
+      var directions = {
+        37: "left",
+        38: "up",
+        39: "right",
+        40: "down",
+        65:"left",
+        87:"up",
+        68:"right",
+        83:"down"
+      }
+      function newGame(key){
+        if(key === 82 || key === 114){
+          s=function(){}
+          eval(document.getElementById("script").innerHTML)
+        }
+      }
+      function gameOver() {
+        clearTimeout(timeOutId)
+        ctx.font = "60px Verdana"
+        ctx.fillStyle = "Black"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("Game Over", width / 2, height / 2)
+        s=function(){}
+        document.getElementById("game").onkeydown=function(e){
+          newGame(e.keyCode)    
+        }
+      }
+      //========================
+      // JQuery
+      //========================
+      document.body.addEventListener("keydown",function(event){
+        event.preventDefault()
+        const newDirection = directions[event.keyCode]
+        if(newDirection !== undefined) {
+          snake.setDirection(newDirection)
+        }
+      })
+      //========================
+      // Game Loop
+      //========================
+      var lag = 0
+      var s = function(){
+        var start = performance.now()
+        ctx.clearRect(0,0,width,height)
+        ctx.fillStyle="lightgrey"
+        ctx.fillRect(0,0,width,height)
+        drawScore()
+        snake.move()
+        snake.draw()
+        apple.draw()
+        drawBorder()
+
+        // timeOutId = setTimeout(requestAnimationFrame.bind(null,s),speed)
+        timeOutId = setTimeout(requestAnimationFrame.bind(null,s),0)
+        var end = performance.now()
+        lag = floor((end-start))
+      }
+      var snake = new Snake()
+      var apple = new Apple()
+      apple.move()
+      timeOutId = setTimeout(function(){requestAnimationFrame(s)},speed)
+      var timeOutId
+    </script>
+  </body>
+
+</html>
